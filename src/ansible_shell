@@ -1,0 +1,338 @@
+#!/usr/bin/env python3
+"""
+ansible_shell v0.0.1
+Dayton Jones
+dayton@gecko.org
+
+A (mostly unneccesary) shell for ansible.  Run adhoc commands as well as playbooks.  Switch between ansible projects (if set in the config file).
+View ansible configs, view ansible inventory, list plugins, view plugin documentaion
+Run shell command, run ipython or python shell
+
+Optional support files:
+
+    Config file: ~/.anssh.cfg
+        [DEFAULT]
+        allow_style = Terminal
+        editor = vim
+        pager = less -r
+        foreground_color = bright_cyan
+        timing = False
+        ansible_directory = /path/to/ansible/directory
+        ansible_inventory = name_of_inventory
+        ansible_projects = ANSIBLE1 ANSIBLE2
+
+        [ANSIBLE1]
+        ansible_directory = /path/to/ansible/directory
+        ansible_inventory = hosts
+
+        [ANSIBLE2]
+        ansible_directory = /path/to/ansible/directory
+        ansible_inventory = inventory
+
+    Startup Script (set aliases, etc): ~/.anssh.rc
+        alias create my_alias_name command args
+        alias create show_log !cat "log file.txt"
+        alias create save_results print_results ">" out.txt
+
+ansible_shell requires some modules you might not have installed, but can attempt to install them for you - or you can handle it yourself (ansible_shell will list which modules are missing)
+
+"""
+import os
+import platform
+import re
+import subprocess
+import sys
+
+ME = os.path.basename(__file__)
+CFG_FILE = os.path.join(os.path.expanduser("~"), '.anssh.cfg')
+VERSION = '0.0.1'
+USERNAME = os.environ.get('USER')
+py_vers = platform.python_version()
+ans_info = subprocess.run(["ansible", "--version"], capture_output = True, check = True)
+a = ans_info.stdout.decode().split('\n')
+a_ver = a[0].split(' (', 1)
+ap_ver = a[6].split('= ',1)
+ap_ver=ap_ver[1].split('(',1)
+j_ver = a[7].split('= ',1)
+swidth = os.get_terminal_size()
+swidth = re.search("=(.*),", str(swidth))
+swidth = swidth.group(1)
+APROJECTS = []
+B_HEADER = "_" * int(swidth)
+BANNER = "{}\n| Ansible Shell {} | Python {} | {} | Ansible-Python {}| Jinja {} |".format(B_HEADER, VERSION, py_vers, a_ver[0], ap_ver[0], j_ver[1])
+
+########################### check for required modules ########################
+os.system('clear')
+REQUIRED = ['ansible_runner', 'argparse', 'cmd2', 'colorama', 'boto3', 'botocore']
+EXIST = []
+MISSING = []
+
+for i in REQUIRED:
+    try:
+        EXIST.append(__import__(i))
+    except ImportError as e:
+        MISSING.append(i)
+
+os.system('clear')
+def _install_required(MISSING):
+    for i in MISSING:
+        try:
+            subprocess.run(["python3", "-m", "pip", "install", "--user", "{}".format(i)], check = True)
+            MISSING.remove(i)
+        except subprocess.CalledProcessError:
+            print("Could not install {}\n".format(i))
+
+def _check_install(INSTALL):
+    if INSTALL == 'retry':
+        os.system('clear')
+        print("You have missing modules that are required to run {}:\n\t{}\n".format(ME, MISSING))
+        INSTALL = input("Shall I try to install them for you? (y/n) ")
+
+    if INSTALL.lower() not in ['y', 'n']:
+        print("Please enter either 'y' or 'n'")
+        INSTALL = 'retry'
+        _check_install(INSTALL)
+
+    if INSTALL.lower() == 'y':
+        _install_required(MISSING)
+    elif INSTALL.lower() == 'n':
+#        print("exiting {}".format(os.path.basename(__file__)))
+        print("exiting {}".format(ME))
+        sys.exit(0)
+
+if len(MISSING) != 0:
+    print("You have missing modules that are required to run {}:\n\t{}\n".format(ME, MISSING))
+    INSTALL = input("Shall I try to install them for you? (y/n) ")
+    _check_install(INSTALL)
+
+if len(MISSING) != 0:
+    print("There are still missing dependencies that I could not resolve, please try to install them manually:\n\t", MISSING)
+    sys.exit(1)
+########################### check for required modules ########################
+from cmd2 import ansi, style, fg, bg, Cmd2ArgumentParser, with_argparser
+from colorama import Fore, Back, Style
+from io import StringIO
+from subprocess import Popen, PIPE
+from typing import List
+import ansible_runner
+import argparse
+import boto3
+import botocore
+import cmd2
+import configparser
+import json
+
+class ans_sh(cmd2.Cmd):
+    version = VERSION
+    banner = BANNER
+    user = USERNAME
+    if os.path.exists(CFG_FILE):
+        config = configparser.ConfigParser()
+        config.read(CFG_FILE)
+        aprojects = config['DEFAULT']['ansible_projects'].split()
+
+    def __init__(self, version, banner, user, aprojects):
+        alias_script = os.path.join(os.path.expanduser("~"), '.anssh.rc')
+        super().__init__(
+                startup_script=alias_script,
+                silence_startup_script=True,
+                persistent_history_file='~/.anssh_history',
+                include_ipy=True,
+                include_py=True,
+        )
+        if os.path.exists(CFG_FILE):
+            self.config = configparser.ConfigParser()
+            self.config.read(CFG_FILE)
+            self.ansible_projects = self.config['DEFAULT']['ansible_projects'].split()
+            self.allow_style = config['DEFAULT']['allow_style']
+            self.editor = config['DEFAULT']['editor']
+            self.pager = config['DEFAULT']['pager']
+            self.foreground_color = config['DEFAULT']['foreground_color']
+            self.timing = config['DEFAULT'].getboolean('timing')
+            self.ansible_directory = config['DEFAULT']['ansible_directory']
+            self.ansible_inventory = config['DEFAULT']['ansible_inventory']
+        else:
+            self.allow_style = 'Terminal'
+            self.editor = 'vim'
+            self.pager = 'less -r'
+            self.foreground_color = 'cyan'
+            self.timing = False
+            self.ansible_projects = aprojects
+            self.ansible_directory = '.'
+            self.ansible_inventory = 'inventory'
+        self.continuation_prompt = '...'
+        self.version = version
+        self.banner = BANNER
+        self.intro = style('Welcome to Ansible Shell {}\nUse \'help\' for help\n'.format(self.version),fg=fg.red, bg=bg.black, bold=True)
+        self._set_prompt()
+        self.add_settable(cmd2.Settable('allow_style', str, 'Send ANSI escape sequences', self))
+        self.add_settable(cmd2.Settable('editor', str, 'Default Editor to use', self))
+        self.add_settable(cmd2.Settable('timing', bool, 'Report run time of commands', self))
+        self.add_settable(cmd2.Settable('foreground_color', str, 'Default color for output', self, choices=fg.colors()))
+        self.add_settable(cmd2.Settable('pager', str, 'Default pager for output', self))
+
+    def do_clear(self,clear=None):
+        """clear the screen"""
+        clear = lambda: os.system('clear')
+        clear()
+
+    do_cls = do_clear
+
+    def _set_prompt(self):
+        self.cwd = os.getcwd()
+        self.banner = BANNER
+        self.user = USERNAME
+        self.prompt = (f'{Fore.GREEN}{self.banner}\n{Fore.LIGHTBLUE_EX}{self.user}@{self.cwd} $>{Style.RESET_ALL} ')
+
+    def postcmd(self, stop: bool, line: str) -> bool:
+        self._set_prompt()
+        return stop
+
+    @cmd2.with_argument_list
+    def do_cd(self, arglist):
+        """Change directory.
+        Usage:
+           cd <new_dir>
+        """
+        if not arglist or len(arglist) != 1:
+            self.perror("cd requires exactly 1 argument:")
+            self.do_help('cd')
+            self.last_result = 'Bad arguments'
+            return
+
+        path = os.path.abspath(os.path.expanduser(arglist[0]))
+
+        err = None
+        data = None
+        if not os.path.isdir(path):
+            err = f'{path} is not a directory'
+        elif not os.access(path, os.R_OK):
+            err = f'You do not have read access to {path}'
+        else:
+            try:
+                os.chdir(path)
+            except Exception as ex:
+                err = f'{ex}'
+            else:
+                self.poutput(f'Successfully changed directory to {path}')
+                data = path
+
+        if err:
+            self.perror(err)
+        self.last_result = data
+
+    # Enable tab completion for cd command
+    def complete_cd(self, text, line, begidx, endidx):
+        return self.path_complete(text, line, begidx, endidx, path_filter=os.path.isdir)
+
+    proj_parser = cmd2.Cmd2ArgumentParser()
+    proj_parser.add_argument('myproject', nargs="?", help="Change ansible projects", choices=aprojects)
+
+    @with_argparser(proj_parser)
+    def do_switch(self, opts):
+        """
+Switch between different ansible projects, which are defined in the config file (~/.anssh.cfg)
+Use 'switch <tab key>' to see the configured projects
+
+    Once in a project, use 'get_cfg' and 'get_inventory' to view project configs
+        """
+        self.project = opts.myproject.upper()
+        self.dir = self.config[self.project]['ansible_directory']
+        os.chdir(self.dir)
+        self.ansible_inventory = config[self.project]['ansible_inventory']
+
+    def do_dir(self, args):
+        """List contents of current directory."""
+        contents = Popen(('ls', self.cwd, '-alF'), shell=False, stdout=PIPE, close_fds=True)
+        for f in contents.stdout.readlines():
+            f = f.decode().rstrip('\n')
+            self.poutput(style(f'{f}', fg=self.foreground_color))
+        self.poutput('')
+        self.last_result = contents
+    do_ls = do_dir
+
+    def do_list_plugins(self,p_list=None):
+        """List installed ansible plugins"""
+        p_list,p_err = ansible_runner.get_plugin_list(list_files=True)
+        self.ppaged(p_list)
+
+    def do_get_plugin_doc(self, plugin=None):
+        """View ansible plugin documentation
+        use 'list_plugins' to see installed plugins
+
+        Usage:
+            get_plugin_doc [plugin]
+        """
+        p_doc, d_err = ansible_runner.get_plugin_docs(
+                plugin_names=[plugin],
+                plugin_type='module',
+        )
+
+    def do_get_inventory(self, action=None, inv_file=None):
+        """View the ansible inventory"""
+        self.action="graph"
+        self.inv=[self.ansible_inventory]
+        i_info, i_err = ansible_runner.get_inventory(self.action, self.inv)
+
+    def complete_get_inventory(self, text, line, begidx, endidx):
+        return self.path_complete(text, line, begidx, endidx)
+
+    def do_get_cfg(self, action=None):
+        """"View the ansible configuration"""
+        self.action='view'
+        a_cfg, a_err = ansible_runner.interface.get_ansible_config(self.action)
+
+    adhoc_parser = cmd2.Cmd2ArgumentParser()
+#    adhoc_parser.add_argument('inventory_location', nargs='?', help='Inventory to use')
+    adhoc_parser.add_argument('hostlist', nargs='?', help='hosts to run against')
+    adhoc_parser.add_argument('mod', nargs='?', help='ansible module to use')
+    adhoc_parser.add_argument('mod_args', nargs='?', help='arguments to pass to module')
+    adhoc_parser.add_argument('verbosity', nargs='?', help='how many "-v" to add to the command (default is 0)', default=0)
+
+    @with_argparser(adhoc_parser)
+    def do_adhoc(self, opts):
+        """
+        Run an adhoc command
+
+          Examples:
+            *) adhoc hosts prod shell uptime 3
+            *) adhoc hosts allscan shell "df -hP"
+        """
+        clear = lambda: os.system('clear')
+        clear()
+        self.inventory = self.inventory
+        self.host_pattern = opts.hostlist
+        self.module = opts.mod
+        self.module_args = opts.mod_args
+        self.output_dir='.'
+        self.verbosity=int(opts.verbosity)
+        r = ansible_runner.run(
+                       private_data_dir=self.output_dir,
+                       artifact_dir='/tmp',
+                       inventory=self.inventory,
+                       host_pattern=self.host_pattern,
+                       module=self.module,
+                       module_args=self.module_args,
+                       verbosity=self.verbosity,
+        )
+        ADHOC_RESULT = {}
+        for x in r.events:
+            a = x.get('event_data')
+            if str(type(a)) == "<class 'dict'>":
+                if "res" in a:
+                    OUT = a.get('res').get('stdout')
+                    HOST = a.get('host')
+                    ADHOC_RESULT[HOST] = OUT
+        for key, value in ADHOC_RESULT.items():
+            a_res = "\n{} ({}):\n {}".format(key, self.module_args, value)
+            self.poutput(style(a_res, fg=self.foreground_color))
+            print()
+
+if __name__ == '__main__':
+    if os.path.exists(CFG_FILE):
+        config = configparser.ConfigParser()
+        config.read(CFG_FILE)
+        os.chdir(config['DEFAULT']['ansible_directory'])
+
+    shell = ans_sh(VERSION, BANNER, USERNAME, CFG_FILE)
+    sys.exit(shell.cmdloop())
