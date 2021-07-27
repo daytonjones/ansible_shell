@@ -307,6 +307,54 @@ Use 'switch <tab key>' to see the configured projects
                 opts.host,
         )
 
+    pb_parser = cmd2.Cmd2ArgumentParser()
+    pb_parser.add_argument('playbook', nargs='?', help='playbook to run')
+    pb_parser.add_argument('-e', '--extra', type=str, help='extra arguments for playbook\nMust be in dictionary form')
+    pb_parser.add_argument('-l', '--limit', type=str, help='limit the play to specfied pattern')
+    pb_parser.add_argument('verbosity', nargs='?', help='how many "-v" to add to the command (default is 0)', default=0)
+
+    @with_argparser(pb_parser)
+    def do_playbook(self, opts):
+        """
+        Run an ansible playbook
+          Usage:
+            playbook <playbook.yml> [--extra <extra_options> | --limit <pattern limit> | <verbosity_level>]
+
+          Notes: '--extra' needs to be entered as a python dictionary :
+              --extra '{"key": "value", "key": "value", ...}'
+
+          Examples:
+            *) playbook update_os.yml --extra '{"hosts": "prod_www"}'  3
+            *) pb database_restart.yml
+            *) pb database_restart.yml -l prod_dbs
+        """
+        clear = lambda: os.system('clear')
+        clear()
+        self.playbook = opts.playbook
+        self.output_dir='.'
+        self.verbosity=int(opts.verbosity)
+        params = {
+                "playbook": self.playbook,
+                "artifact_dir": "/tmp",
+                "private_data_dir": self.output_dir,
+                "verbosity": self.verbosity
+        }
+        if opts.extra:
+            self.extravars = json.loads(opts.extra)
+            params['extravars'] = self.extravars
+        if opts.limit:
+            self.limit = opts.limit
+            params['limit'] = self.limit
+        r = ansible_runner.run(**params)
+
+# Enable tab completion for cd command
+    def complete_playbook(self, text, line, begidx, endidx):
+        return self.path_complete(text, line, begidx, endidx, path_filter=os.path.isfile)
+    def complete_pb(self, text, line, begidx, endidx):
+        return self.path_complete(text, line, begidx, endidx, path_filter=os.path.isfile)
+
+    do_pb = do_playbook
+
     adhoc_parser = cmd2.Cmd2ArgumentParser()
     adhoc_parser.add_argument('hostlist', nargs='?', help='hosts to run against')
     adhoc_parser.add_argument('mod', nargs='?', help='ansible module to use')
