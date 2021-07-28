@@ -63,12 +63,15 @@ try:
     ans_info = subprocess.run(["ansible", "--version"], capture_output = True, check = True)
     a = ans_info.stdout.decode().split('\n')
     A_VER = a[0].split(' (', 1)
+    A_VER = A_VER[0]
     ap_ver = a[6].split('= ',1)
-    AP_VER=ap_ver[1].split('(',1)
+    AP_VER = ap_ver[1].split('(',1)
+    AP_VER = AP_VER[0]
     J_VER = a[7].split('= ',1)
+    J_VER = J_VER[1]
 except subprocess.CalledProcessError as e:
     print(e.output)
-    A_VER = "UNKNOWN"
+    A_VER = " Ansible UNKNOWN"
     AP_VER="UNKNOWN"
     J_VER = "UNKNOWN"
 swidth = os.get_terminal_size()
@@ -76,13 +79,19 @@ swidth = re.search("=(.*),", str(swidth))
 swidth = swidth.group(1)
 APROJECTS = []
 B_HEADER = "_" * int(swidth)
-BANNER = "{}\n| Ansible Shell {} | Python {} | {} | Ansible-Python {}| Jinja {} |".format(B_HEADER, VERSION, PY_VERS, A_VER[0], AP_VER[0], J_VER[1])
+BANNER = "{}\n| Ansible Shell {} | Python {} | {} | Ansible-Python {}| Jinja {} |".format(B_HEADER, VERSION, PY_VERS, A_VER, AP_VER, J_VER)
 
 ########################### check for required modules ########################
 os.system('clear')
-REQUIRED = ['ansible_runner', 'argparse', 'cmd2', 'colorama', 'boto3', 'botocore']
+REQUIRED = ['ansible_runner', 'argparse', 'cmd2', 'colorama']
 EXIST = []
 MISSING = []
+
+try:
+    ANSEXIST = __import__('ansible')
+except ImportError:
+    print("\nCan't find ansible on the system, please install it or ensure it is in the path\n\n\t Try:\t'pip install --user ansible' or have your admin install it\n")
+    sys.exit(1)
 
 for mod in REQUIRED:
     try:
@@ -132,8 +141,6 @@ from subprocess import Popen, PIPE
 from typing import List
 import ansible_runner
 import argparse
-import boto3
-import botocore
 import cmd2
 import configparser
 import json
@@ -145,7 +152,12 @@ class ans_sh(cmd2.Cmd):
     if os.path.exists(CFG_FILE):
         config = configparser.ConfigParser()
         config.read(CFG_FILE)
-        aprojects = config['DEFAULT']['ansible_projects'].split()
+        try:
+            aprojects = config['DEFAULT']['ansible_projects'].split()
+        except:
+            aprojects = ''
+    else:
+        aprojects = []
 
     def __init__(self, version, banner, user, aprojects):
         alias_script = os.path.join(os.path.expanduser("~"), '.anssh.rc')
@@ -159,21 +171,25 @@ class ans_sh(cmd2.Cmd):
         if os.path.exists(CFG_FILE):
             self.config = configparser.ConfigParser()
             self.config.read(CFG_FILE)
-            self.ansible_projects = self.config['DEFAULT']['ansible_projects'].split()
-            self.allow_style = config['DEFAULT']['allow_style']
-            self.editor = config['DEFAULT']['editor']
-            self.pager = config['DEFAULT']['pager']
-            self.foreground_color = config['DEFAULT']['foreground_color']
-            self.timing = config['DEFAULT'].getboolean('timing')
-            self.ansible_directory = config['DEFAULT']['ansible_directory']
-            self.ansible_inventory = config['DEFAULT']['ansible_inventory']
+            mydefault = self.config['DEFAULT']
+            if 'ansible_projects' in config['DEFAULT']:
+                self.ansible_projects = config['DEFAULT']['ansible_projects'].split()
+            else:
+                self.ansible_projects = []
+            self.allow_style = mydefault.get('allow_style', 'Terminal')
+            self.editor = mydefault.get('editor', 'nano')
+            self.pager = mydefault.get('pager', 'less -r')
+            self.foreground_color = mydefault.get('foreground_color', 'cyan')
+            self.timing = mydefault.getboolean('timing', False)
+            self.ansible_directory = mydefault.get('ansible_directory', '.')
+            self.ansible_inventory = mydefault.get('ansible_inventory', 'inventory')
         else:
             self.allow_style = 'Terminal'
-            self.editor = 'vim'
+            self.editor = 'nano'
             self.pager = 'less -r'
             self.foreground_color = 'cyan'
             self.timing = False
-            self.ansible_projects = aprojects
+            self.ansible_projects = []
             self.ansible_directory = '.'
             self.ansible_inventory = 'inventory'
         self.continuation_prompt = '...'
@@ -353,7 +369,7 @@ Use 'switch <tab key>' to see the configured projects
             params['limit'] = self.limit
         r = ansible_runner.run(**params)
 
-# Enable tab completion for cd command
+    # Enable tab completion for cd command
     def complete_playbook(self, text, line, begidx, endidx):
         return self.path_complete(text, line, begidx, endidx, path_filter=os.path.isfile)
     def complete_pb(self, text, line, begidx, endidx):
