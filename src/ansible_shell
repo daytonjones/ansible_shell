@@ -415,7 +415,8 @@ if __name__ == '__main__':
     if os.path.exists(CFG_FILE):
         config = configparser.ConfigParser()
         config.read(CFG_FILE)
-        os.chdir(config['DEFAULT']['ansible_directory'])
+        if 'ansible_directory' in config['DEFAULT']:
+            os.chdir(config['DEFAULT']['ansible_directory'])
 
     shell = ans_sh(VERSION, BANNER, USERNAME, CFG_FILE)
     sys.exit(shell.cmdloop())
