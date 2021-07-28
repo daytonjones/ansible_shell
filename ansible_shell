@@ -434,15 +434,23 @@ Use 'switch <tab key>' to see the configured projects
 
     def do_LICENSE(self, cruft):
         """ View the licensing info"""
-        self.license = open(os.path.join(sys.path[0], "LICENSE"), "r")
-        for line in self.license:
-            self.poutput(style(line.rstrip(), fg=self.foreground_color))
+        mylicense = os.path.join(sys.path[0], "LICENSE")
+        if os.path.exists(mylicense):
+            self.license = open(mylicense, "r")
+            for line in self.license:
+                self.poutput(style(line.rstrip(), fg=self.foreground_color))
+        else:
+            self.poutput(style("LICENSE not found",fg='black', bg='red', bold=True))
 
     def do_README(self, cruft):
         """ View the README file"""
-        self.readme = open(os.path.join(sys.path[0], "README.md"), "r")
-        for line in self.readme:
-            self.poutput(style(line.rstrip(), fg=self.foreground_color))
+        myreadme = os.path.join(sys.path[0], "README.md")
+        if os.path.exists(myreadme):
+            self.readme = open(os.path.join(sys.path[0], "README.md"), "r")
+            for line in self.readme:
+                self.poutput(style(line.rstrip(), fg=self.foreground_color))
+        else:
+            self.poutput(style("README.md not found",fg='black', bg='red', bold=True))
 
 if __name__ == '__main__':
     if os.path.exists(CFG_FILE):
