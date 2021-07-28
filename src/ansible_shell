@@ -59,12 +59,18 @@ CFG_FILE = os.path.join(os.path.expanduser("~"), '.anssh.cfg')
 VERSION = '0.0.1'
 USERNAME = os.environ.get('USER')
 PY_VERS = platform.python_version()
-ans_info = subprocess.run(["ansible", "--version"], capture_output = True, check = True)
-a = ans_info.stdout.decode().split('\n')
-A_VER = a[0].split(' (', 1)
-ap_ver = a[6].split('= ',1)
-AP_VER=ap_ver[1].split('(',1)
-J_VER = a[7].split('= ',1)
+try:
+    ans_info = subprocess.run(["ansible", "--version"], capture_output = True, check = True)
+    a = ans_info.stdout.decode().split('\n')
+    A_VER = a[0].split(' (', 1)
+    ap_ver = a[6].split('= ',1)
+    AP_VER=ap_ver[1].split('(',1)
+    J_VER = a[7].split('= ',1)
+except subprocess.CalledProcessError as e:
+    print(e.output)
+    A_VER = "UNKNOWN"
+    AP_VER="UNKNOWN"
+    J_VER = "UNKNOWN"
 swidth = os.get_terminal_size()
 swidth = re.search("=(.*),", str(swidth))
 swidth = swidth.group(1)

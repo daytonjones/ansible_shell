@@ -16,8 +16,8 @@ Optional support files:
     Config file: ~/.anssh.cfg
         [DEFAULT]
         allow_style = {Never | Terminal | Always}
-        editor = {editor {vim, nano, etc}
-        pager = {pager (less, more, etc)
+        editor = {vim, nano, etc}
+        pager = {less, more, etc)
         foreground_color = {color}
         timing = True/False
         ansible_directory = /path/to/ansible/directory
