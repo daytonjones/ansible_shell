@@ -184,7 +184,7 @@ class ans_sh(cmd2.Cmd):
         self.continuation_prompt = '...'
         self.version = version
         self.banner = BANNER
-        self.intro = style('Welcome to Ansible Shell {}\nUse \'help\' for help\n'.format(self.version),fg=fg.red, bg=bg.black, bold=True)
+        self.intro = style('Welcome to Ansible Shell {}\n\tUse \'help\' or \'?\' to see available commands\n\tUse \'set\' to see available options\n\n\tTab completion is available for most commands'.format(self.version),fg=fg.red, bg=bg.black, bold=True)
         self._set_prompt()
         self.add_settable(cmd2.Settable('allow_style', str, 'Send ANSI escape sequences', self))
         self.add_settable(cmd2.Settable('editor', str, 'Default Editor to use', self))
@@ -272,51 +272,72 @@ Use 'switch <tab key>' to see the configured projects
         self.last_result = contents
     do_ls = do_dir
 
-    def do_list_plugins(self,p_list=None):
+    def do_plugins(self,p_list=None):
         """List installed ansible plugins"""
-        p_list,p_err = ansible_runner.get_plugin_list(list_files=True)
-        self.ppaged(p_list)
+        p_list,p_err = ansible_runner.get_plugin_list(list_files=True, quiet=True)
+        self.ppaged(style(p_list, fg=self.foreground_color))
 
-    def do_get_plugin_doc(self, plugin=None):
+    def do_plugin_doc(self, plugin=None):
         """View ansible plugin documentation
         use 'list_plugins' to see installed plugins
 
         Usage:
-            get_plugin_doc [plugin]
+            plugin_doc [plugin]
         """
         p_doc, d_err = ansible_runner.get_plugin_docs(
                 plugin_names=[plugin],
                 plugin_type='module',
+                quiet=True
         )
+        self.ppaged(style(p_doc,fg=self.foreground_color))
+        self.do_clear()
+        self.poutput(style(p_doc, fg=self.foreground_color))
 
-    def do_get_inventory(self, action=None, inv_file=None):
-        """View the ansible inventory"""
+    def do_inventory(self, action=None, inv_file=None):
+        """View the entire ansible inventory"""
+        self.poutput(style('This displays *all* inventory info - hosts, host/group vars,etc\n\nThis will probably take a while', fg='red', bold=True))
         self.action="list"
         self.inv=[self.ansible_inventory]
-        i_info, i_err = ansible_runner.get_inventory(self.action, self.inv)
+        i_info, i_err = ansible_runner.get_inventory(self.action, self.inv, quiet=True)
+        self.ppaged(style(i_info,fg=self.foreground_color))
+        self.do_clear()
+        self.poutput(style(i_info, fg=self.foreground_color))
 
-    def complete_get_inventory(self, text, line, begidx, endidx):
+    def complete_inventory(self, text, line, begidx, endidx):
         return self.path_complete(text, line, begidx, endidx)
 
-    def do_get_cfg(self, action=None):
+    def do_config(self, action=None):
         """"View the ansible configuration"""
         self.action='view'
-        a_cfg, a_err = ansible_runner.interface.get_ansible_config(self.action)
+        a_cfg, a_err = ansible_runner.interface.get_ansible_config(self.action,quiet=True)
+        self.poutput(style(a_cfg,fg=self.foreground_color))
+        self.do_clear()
+        self.poutput(style(a_cfg, fg=self.foreground_color))
 
     host_inv_parser = cmd2.Cmd2ArgumentParser()
-    host_inv_parser.add_argument('host', nargs='?', help='host to view inventory infomation for')
+    host_inv_parser.add_argument('host', nargs='?', help='host to view inventory information for')
 
     @with_argparser(host_inv_parser)
-    def do_get_host_inventory(self, opts):
+    def do_host(self, opts):
+        """
+        View all ansible vars/info for <host>, if any are set in inventory (host_vars, group_vars, etc)
+
+        Usage:
+            host <host>
+        """
         self.action="host"
         self.inv=[self.ansible_inventory]
-        self.format="json"
+        self.format="yaml"
         i_info, i_err = ansible_runner.get_inventory(
                 self.action,
                 self.inv,
                 self.format,
                 opts.host,
+                quiet=True,
         )
+        self.ppaged(style(i_info,fg=self.foreground_color))
+        self.do_clear()  
+        self.poutput(style(i_info, fg=self.foreground_color))
 
     pb_parser = cmd2.Cmd2ArgumentParser()
     pb_parser.add_argument('playbook', nargs='?', help='playbook to run')
