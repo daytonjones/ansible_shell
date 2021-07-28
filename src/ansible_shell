@@ -63,35 +63,24 @@ try:
     ans_info = subprocess.run(["ansible", "--version"], capture_output = True, check = True)
     a = ans_info.stdout.decode().split('\n')
     A_VER = a[0].split(' (', 1)
-    A_VER = A_VER[0]
     ap_ver = a[6].split('= ',1)
     AP_VER = ap_ver[1].split('(',1)
-    AP_VER = AP_VER[0]
     J_VER = a[7].split('= ',1)
-    J_VER = J_VER[1]
-except subprocess.CalledProcessError as e:
-    print(e.output)
-    A_VER = " Ansible UNKNOWN"
-    AP_VER="UNKNOWN"
-    J_VER = "UNKNOWN"
+except subprocess.CalledProcessError:
+    print("\nCan't find ansible on the system, please install it or ensure it is in the path\n\n\t Try:\t'pip install --user ansible' or have your admin install it\n")
+    sys.exit(1)
 swidth = os.get_terminal_size()
 swidth = re.search("=(.*),", str(swidth))
 swidth = swidth.group(1)
 APROJECTS = []
 B_HEADER = "_" * int(swidth)
-BANNER = "{}\n| Ansible Shell {} | Python {} | {} | Ansible-Python {}| Jinja {} |".format(B_HEADER, VERSION, PY_VERS, A_VER, AP_VER, J_VER)
+BANNER = "{}\n| Ansible Shell {} | Python {} | {} | Ansible-Python {}| Jinja {} |".format(B_HEADER, VERSION, PY_VERS, A_VER[0], AP_VER[0], J_VER[1])
 
 ########################### check for required modules ########################
 os.system('clear')
 REQUIRED = ['ansible_runner', 'argparse', 'cmd2', 'colorama']
 EXIST = []
 MISSING = []
-
-try:
-    ANSEXIST = __import__('ansible')
-except ImportError:
-    print("\nCan't find ansible on the system, please install it or ensure it is in the path\n\n\t Try:\t'pip install --user ansible' or have your admin install it\n")
-    sys.exit(1)
 
 for mod in REQUIRED:
     try:
