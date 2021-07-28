@@ -1,38 +1,49 @@
 #!/usr/bin/env python3
 """
 ansible_shell v0.0.1
-Dayton Jones
+© 2021 Dayton Jones
 dayton@gecko.org
+under the MIT License (see LICENSE file)
 
-A (mostly unneccesary) shell for ansible.  Run adhoc commands as well as playbooks.  Switch between ansible projects (if set in the config file).
-View ansible configs, view ansible inventory, list plugins, view plugin documentaion
-Run shell command, run ipython or python shell
+A (mostly unneccesary) shell for ansible.
+  * Run adhoc commands as well as playbooks
+  * Create aliases/macros to simplify commands
+  * Switch between ansible projects (if set in the config file).
+  * View ansible configs
+  * View ansible inventory
+  * List plugins, view plugin documentaion
+  * Run shell commands inline
+  * Run an ipython or python shell without exiting the shell or opening a seperate terminal
+  * Change settings on the fly (debug, foreground color, etc)
+  * Edit files without exiting the shell
 
 Optional support files:
 
     Config file: ~/.anssh.cfg
         [DEFAULT]
-        allow_style = Terminal
-        editor = vim
-        pager = less -r
-        foreground_color = bright_cyan
-        timing = False
+        allow_style = {Never | Terminal | Always}
+        editor = {editor {vim, nano, etc}
+        pager = {pager (less, more, etc)
+        foreground_color = {color}
+        timing = True/False
         ansible_directory = /path/to/ansible/directory
         ansible_inventory = name_of_inventory
-        ansible_projects = ANSIBLE1 ANSIBLE2
+        ansible_projects = ProjectName1 ProjectName2
 
-        [ANSIBLE1]
+        [ProjectName1]
         ansible_directory = /path/to/ansible/directory
         ansible_inventory = hosts
 
-        [ANSIBLE2]
+        [ProjectName2]
         ansible_directory = /path/to/ansible/directory
         ansible_inventory = inventory
 
-    Startup Script (set aliases, etc): ~/.anssh.rc
-        alias create my_alias_name command args
+    Startup Script (permanently set aliases, etc): ~/.anssh.rc
+        alias create {alias_name} {command}
         alias create show_log !cat "log file.txt"
         alias create save_results print_results ">" out.txt
+        macro create {name} {command} "{1}" "|" {cmd}
+        macro create lc ~cat "{1}" "|" less
 
 ansible_shell requires some modules you might not have installed, but can attempt to install them for you - or you can handle it yourself (ansible_shell will list which modules are missing)
 
@@ -47,40 +58,55 @@ ME = os.path.basename(__file__)
 CFG_FILE = os.path.join(os.path.expanduser("~"), '.anssh.cfg')
 VERSION = '0.0.1'
 USERNAME = os.environ.get('USER')
-py_vers = platform.python_version()
-ans_info = subprocess.run(["ansible", "--version"], capture_output = True, check = True)
-a = ans_info.stdout.decode().split('\n')
-a_ver = a[0].split(' (', 1)
-ap_ver = a[6].split('= ',1)
-ap_ver=ap_ver[1].split('(',1)
-j_ver = a[7].split('= ',1)
+PY_VERS = platform.python_version()
+try:
+    ans_info = subprocess.run(["ansible", "--version"], capture_output = True, check = True)
+    a = ans_info.stdout.decode().split('\n')
+    A_VER = a[0].split(' (', 1)
+    A_VER = A_VER[0]
+    ap_ver = a[6].split('= ',1)
+    AP_VER = ap_ver[1].split('(',1)
+    AP_VER = AP_VER[0]
+    J_VER = a[7].split('= ',1)
+    J_VER = J_VER[1]
+except subprocess.CalledProcessError as e:
+    print(e.output)
+    A_VER = " Ansible UNKNOWN"
+    AP_VER="UNKNOWN"
+    J_VER = "UNKNOWN"
 swidth = os.get_terminal_size()
 swidth = re.search("=(.*),", str(swidth))
 swidth = swidth.group(1)
 APROJECTS = []
 B_HEADER = "_" * int(swidth)
-BANNER = "{}\n| Ansible Shell {} | Python {} | {} | Ansible-Python {}| Jinja {} |".format(B_HEADER, VERSION, py_vers, a_ver[0], ap_ver[0], j_ver[1])
+BANNER = "{}\n| Ansible Shell {} | Python {} | {} | Ansible-Python {}| Jinja {} |".format(B_HEADER, VERSION, PY_VERS, A_VER, AP_VER, J_VER)
 
 ########################### check for required modules ########################
 os.system('clear')
-REQUIRED = ['ansible_runner', 'argparse', 'cmd2', 'colorama', 'boto3', 'botocore']
+REQUIRED = ['ansible_runner', 'argparse', 'cmd2', 'colorama']
 EXIST = []
 MISSING = []
 
-for i in REQUIRED:
+try:
+    ANSEXIST = __import__('ansible')
+except ImportError:
+    print("\nCan't find ansible on the system, please install it or ensure it is in the path\n\n\t Try:\t'pip install --user ansible' or have your admin install it\n")
+    sys.exit(1)
+
+for mod in REQUIRED:
     try:
-        EXIST.append(__import__(i))
+        EXIST.append(__import__(mod))
     except ImportError as e:
-        MISSING.append(i)
+        MISSING.append(mod)
 
 os.system('clear')
 def _install_required(MISSING):
-    for i in MISSING:
+    for mod in MISSING:
         try:
-            subprocess.run(["python3", "-m", "pip", "install", "--user", "{}".format(i)], check = True)
-            MISSING.remove(i)
+            subprocess.run(["python3", "-m", "pip", "install", "--user", "{}".format(mod)], check = True)
+            MISSING.remove(mod)
         except subprocess.CalledProcessError:
-            print("Could not install {}\n".format(i))
+            print("Could not install {}\n".format(mod))
 
 def _check_install(INSTALL):
     if INSTALL == 'retry':
@@ -96,7 +122,6 @@ def _check_install(INSTALL):
     if INSTALL.lower() == 'y':
         _install_required(MISSING)
     elif INSTALL.lower() == 'n':
-#        print("exiting {}".format(os.path.basename(__file__)))
         print("exiting {}".format(ME))
         sys.exit(0)
 
@@ -116,8 +141,6 @@ from subprocess import Popen, PIPE
 from typing import List
 import ansible_runner
 import argparse
-import boto3
-import botocore
 import cmd2
 import configparser
 import json
@@ -129,7 +152,12 @@ class ans_sh(cmd2.Cmd):
     if os.path.exists(CFG_FILE):
         config = configparser.ConfigParser()
         config.read(CFG_FILE)
-        aprojects = config['DEFAULT']['ansible_projects'].split()
+        try:
+            aprojects = config['DEFAULT']['ansible_projects'].split()
+        except:
+            aprojects = ''
+    else:
+        aprojects = []
 
     def __init__(self, version, banner, user, aprojects):
         alias_script = os.path.join(os.path.expanduser("~"), '.anssh.rc')
@@ -143,21 +171,25 @@ class ans_sh(cmd2.Cmd):
         if os.path.exists(CFG_FILE):
             self.config = configparser.ConfigParser()
             self.config.read(CFG_FILE)
-            self.ansible_projects = self.config['DEFAULT']['ansible_projects'].split()
-            self.allow_style = config['DEFAULT']['allow_style']
-            self.editor = config['DEFAULT']['editor']
-            self.pager = config['DEFAULT']['pager']
-            self.foreground_color = config['DEFAULT']['foreground_color']
-            self.timing = config['DEFAULT'].getboolean('timing')
-            self.ansible_directory = config['DEFAULT']['ansible_directory']
-            self.ansible_inventory = config['DEFAULT']['ansible_inventory']
+            mydefault = self.config['DEFAULT']
+            if 'ansible_projects' in config['DEFAULT']:
+                self.ansible_projects = config['DEFAULT']['ansible_projects'].split()
+            else:
+                self.ansible_projects = []
+            self.allow_style = mydefault.get('allow_style', 'Terminal')
+            self.editor = mydefault.get('editor', 'nano')
+            self.pager = mydefault.get('pager', 'less -r')
+            self.foreground_color = mydefault.get('foreground_color', 'cyan')
+            self.timing = mydefault.getboolean('timing', False)
+            self.ansible_directory = mydefault.get('ansible_directory', '.')
+            self.ansible_inventory = mydefault.get('ansible_inventory', 'inventory')
         else:
             self.allow_style = 'Terminal'
-            self.editor = 'vim'
+            self.editor = 'nano'
             self.pager = 'less -r'
             self.foreground_color = 'cyan'
             self.timing = False
-            self.ansible_projects = aprojects
+            self.ansible_projects = []
             self.ansible_directory = '.'
             self.ansible_inventory = 'inventory'
         self.continuation_prompt = '...'
@@ -270,7 +302,7 @@ Use 'switch <tab key>' to see the configured projects
 
     def do_get_inventory(self, action=None, inv_file=None):
         """View the ansible inventory"""
-        self.action="graph"
+        self.action="list"
         self.inv=[self.ansible_inventory]
         i_info, i_err = ansible_runner.get_inventory(self.action, self.inv)
 
@@ -282,8 +314,70 @@ Use 'switch <tab key>' to see the configured projects
         self.action='view'
         a_cfg, a_err = ansible_runner.interface.get_ansible_config(self.action)
 
+    host_inv_parser = cmd2.Cmd2ArgumentParser()
+    host_inv_parser.add_argument('host', nargs='?', help='host to view inventory infomation for')
+
+    @with_argparser(host_inv_parser)
+    def do_get_host_inventory(self, opts):
+        self.action="host"
+        self.inv=[self.ansible_inventory]
+        self.format="json"
+        i_info, i_err = ansible_runner.get_inventory(
+                self.action,
+                self.inv,
+                self.format,
+                opts.host,
+        )
+
+    pb_parser = cmd2.Cmd2ArgumentParser()
+    pb_parser.add_argument('playbook', nargs='?', help='playbook to run')
+    pb_parser.add_argument('-e', '--extra', type=str, help='extra arguments for playbook\nMust be in dictionary form')
+    pb_parser.add_argument('-l', '--limit', type=str, help='limit the play to specfied pattern')
+    pb_parser.add_argument('verbosity', nargs='?', help='how many "-v" to add to the command (default is 0)', default=0)
+
+    @with_argparser(pb_parser)
+    def do_playbook(self, opts):
+        """
+        Run an ansible playbook
+          Usage:
+            playbook <playbook.yml> [--extra <extra_options> | --limit <pattern limit> | <verbosity_level>]
+
+          Notes: '--extra' needs to be entered as a python dictionary :
+              --extra '{"key": "value", "key": "value", ...}'
+
+          Examples:
+            *) playbook update_os.yml --extra '{"hosts": "prod_www"}'  3
+            *) pb database_restart.yml
+            *) pb database_restart.yml -l prod_dbs
+        """
+        clear = lambda: os.system('clear')
+        clear()
+        self.playbook = opts.playbook
+        self.output_dir='.'
+        self.verbosity=int(opts.verbosity)
+        params = {
+                "playbook": self.playbook,
+                "artifact_dir": "/tmp",
+                "private_data_dir": self.output_dir,
+                "verbosity": self.verbosity
+        }
+        if opts.extra:
+            self.extravars = json.loads(opts.extra)
+            params['extravars'] = self.extravars
+        if opts.limit:
+            self.limit = opts.limit
+            params['limit'] = self.limit
+        r = ansible_runner.run(**params)
+
+    # Enable tab completion for cd command
+    def complete_playbook(self, text, line, begidx, endidx):
+        return self.path_complete(text, line, begidx, endidx, path_filter=os.path.isfile)
+    def complete_pb(self, text, line, begidx, endidx):
+        return self.path_complete(text, line, begidx, endidx, path_filter=os.path.isfile)
+
+    do_pb = do_playbook
+
     adhoc_parser = cmd2.Cmd2ArgumentParser()
-#    adhoc_parser.add_argument('inventory_location', nargs='?', help='Inventory to use')
     adhoc_parser.add_argument('hostlist', nargs='?', help='hosts to run against')
     adhoc_parser.add_argument('mod', nargs='?', help='ansible module to use')
     adhoc_parser.add_argument('mod_args', nargs='?', help='arguments to pass to module')
@@ -293,14 +387,15 @@ Use 'switch <tab key>' to see the configured projects
     def do_adhoc(self, opts):
         """
         Run an adhoc command
+          Usage:
+            adhoc <hostlist> <module> <module argmuments>
 
           Examples:
-            *) adhoc hosts prod shell uptime 3
-            *) adhoc hosts allscan shell "df -hP"
+            *) adhoc prod-www shell uptime 3
+            *) adhoc databases shell "df -hP"
         """
         clear = lambda: os.system('clear')
         clear()
-        self.inventory = self.inventory
         self.host_pattern = opts.hostlist
         self.module = opts.mod
         self.module_args = opts.mod_args
@@ -309,7 +404,6 @@ Use 'switch <tab key>' to see the configured projects
         r = ansible_runner.run(
                        private_data_dir=self.output_dir,
                        artifact_dir='/tmp',
-                       inventory=self.inventory,
                        host_pattern=self.host_pattern,
                        module=self.module,
                        module_args=self.module_args,

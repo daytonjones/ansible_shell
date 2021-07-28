@@ -7,12 +7,11 @@ setuptools.setup(
     name='ansible_shell',
     version='0.0.1',
     description='A "shell" for ansible',
-    long_description=long_description,
+    long_description=file: README.md
     long_description_content_type="text/markdown",
     url='http://github.com/daytonjones/ansible_shell',
     author='Dayton Jones',
     author_email='dayton@gecko.org',
-    license='CCO',
     zip_safe=False,
     classifiers=[
         "Programming Language :: Python :: 3",
