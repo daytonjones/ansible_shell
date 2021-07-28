@@ -432,6 +432,18 @@ Use 'switch <tab key>' to see the configured projects
             self.poutput(style(a_res, fg=self.foreground_color))
             print()
 
+    def do_LICENSE(self, cruft):
+        """ View the licensing info"""
+        self.license = open(os.path.join(sys.path[0], "LICENSE"), "r")
+        for line in self.license:
+            self.poutput(style(line.rstrip(), fg=self.foreground_color))
+
+    def do_README(self, cruft):
+        """ View the README file"""
+        self.readme = open(os.path.join(sys.path[0], "README.md"), "r")
+        for line in self.readme:
+            self.poutput(style(line.rstrip(), fg=self.foreground_color))
+
 if __name__ == '__main__':
     if os.path.exists(CFG_FILE):
         config = configparser.ConfigParser()
