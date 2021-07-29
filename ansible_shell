@@ -46,6 +46,10 @@ Optional support files:
         macro create lc ~cat "{1}" "|" less
 
 ansible_shell requires some modules you might not have installed, but can attempt to install them for you - or you can handle it yourself (ansible_shell will list which modules are missing)
+Available colors to use with 'foreground_color':
+    black   blue   bright_black   bright_blue   bright_cyan   bright_green   bright_magenta
+    bright_red   bright_white   bright_yellow   cyan   green   magenta   red   white   yellow
+
 
 """
 import os
