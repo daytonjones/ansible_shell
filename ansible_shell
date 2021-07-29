@@ -276,6 +276,8 @@ Use 'switch <tab key>' to see the configured projects
         """List installed ansible plugins"""
         p_list,p_err = ansible_runner.get_plugin_list(list_files=True, quiet=True)
         self.ppaged(style(p_list, fg=self.foreground_color))
+        self.do_clear()
+        self.poutput(style(p_list, fg=self.foreground_color))
 
     def do_plugin_doc(self, plugin=None):
         """View ansible plugin documentation
