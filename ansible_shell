@@ -82,7 +82,7 @@ BANNER = "{}\n| Ansible Shell {} | Python {} | {} | Ansible-Python {}| Jinja {} 
 
 ########################### check for required modules ########################
 os.system('clear')
-REQUIRED = ['ansible_runner', 'argparse', 'cmd2', 'colorama']
+REQUIRED = ['ansible_runner', 'argparse', 'asciimatics', 'cmd2', 'colorama']
 EXIST = []
 MISSING = []
 
@@ -125,7 +125,7 @@ if len(MISSING) != 0:
 
 if len(MISSING) != 0:
     print("There are still missing dependencies that I could not resolve, please try to install them manually:\n\t", MISSING)
-    sys.exit(1)
+   sys.exit(1)
 ########################### check for required modules ########################
 from cmd2 import ansi, style, fg, bg, Cmd2ArgumentParser, with_argparser
 from colorama import Fore, Back, Style
@@ -460,20 +460,18 @@ Use 'switch <tab key>' to see the configured projects
             self.poutput(style("README.md not found",fg='black', bg='red', bold=True))
 
 def splash():
-    TEXT = """
-    _    _   _ ____ ___ ____  _     _____
-   / \  | \ | / ___|_ _| __ )| |   | ____|
-  / _ \ |  \| \___ \| ||  _ \| |   |  _|
- / ___ \| |\  |___) | || |_) | |___| |___
-/_/   \_\_| \_|____/___|____/|_____|_____|
-
- ____  _   _ _____ _     _
-/ ___|| | | | ____| |   | |
-\___ \| |_| |  _| | |   | |
- ___) |  _  | |___| |___| |___
-|____/|_| |_|_____|_____|_____|
-
-"""
+    effects = [
+        Cycle(
+            screen,
+            FigletText("ANSIBLE", font='big'),
+            int(screen.height / 2 - 8)),
+        Cycle(
+            screen,
+            FigletText("SHELL", font='big'),
+            int(screen.height / 2 + 3)),
+        Stars(screen, 200)
+    ]
+    screen.play([Scene(effects, 100)], repeat=False)
     os.system('clear')
     print(Fore.YELLOW + TEXT + Fore.BLUE + 'v%s' % VERSION + Style.RESET_ALL)
     print(Fore.GREEN + '©2021 Dayton Jones' + Style.RESET_ALL)
@@ -490,10 +488,11 @@ if __name__ == '__main__':
             if SPLASH is False:
                 pass
             else:
-                splash()
+#                splash()
+                Screen.wrapper(splash)
         else:
-            splash()
-
+#            splash()
+            Screen.wrapper(splash)
         if 'ansible_directory' in config['DEFAULT']:
             os.chdir(config['DEFAULT']['ansible_directory'])
 
