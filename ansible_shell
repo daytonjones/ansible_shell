@@ -125,8 +125,12 @@ if len(MISSING) != 0:
 
 if len(MISSING) != 0:
     print("There are still missing dependencies that I could not resolve, please try to install them manually:\n\t", MISSING)
-   sys.exit(1)
-########################### check for required modules ########################
+    sys.exit(1)
+####################### end check for required modules ########################
+from asciimatics.effects import Cycle, Stars
+from asciimatics.renderers import FigletText
+from asciimatics.scene import Scene
+from asciimatics.screen import Screen
 from cmd2 import ansi, style, fg, bg, Cmd2ArgumentParser, with_argparser
 from colorama import Fore, Back, Style
 from io import StringIO
@@ -189,7 +193,7 @@ class ans_sh(cmd2.Cmd):
         self.continuation_prompt = '...'
         self.version = version
         self.banner = BANNER
-        self.intro = style('Welcome to Ansible Shell {}\n\tUse \'help\' or \'?\' to see available commands\n\tUse \'set\' to see available options\n\n\tTab completion is available for most commands'.format(self.version),fg=fg.red, bg=bg.black, bold=True)
+        self.intro = style('Welcome to Ansible Shell {} ©2021 Dayton Jones\n\tUse \'help\' or \'?\' to see available commands\n\tUse \'set\' to see available options\n\n\tTab completion is available for most commands'.format(self.version),fg=fg.red, bg=bg.black, bold=True)
         self._set_prompt()
         self.add_settable(cmd2.Settable('allow_style', str, 'Send ANSI escape sequences', self))
         self.add_settable(cmd2.Settable('editor', str, 'Default Editor to use', self))
@@ -459,7 +463,7 @@ Use 'switch <tab key>' to see the configured projects
         else:
             self.poutput(style("README.md not found",fg='black', bg='red', bold=True))
 
-def splash():
+def splash(screen):
     effects = [
         Cycle(
             screen,
@@ -472,12 +476,6 @@ def splash():
         Stars(screen, 200)
     ]
     screen.play([Scene(effects, 100)], repeat=False)
-    os.system('clear')
-    print(Fore.YELLOW + TEXT + Fore.BLUE + 'v%s' % VERSION + Style.RESET_ALL)
-    print(Fore.GREEN + '©2021 Dayton Jones' + Style.RESET_ALL)
-    time.sleep(5)
-    os.system('clear')
-
 
 if __name__ == '__main__':
     if os.path.exists(CFG_FILE):
