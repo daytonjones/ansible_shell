@@ -475,7 +475,7 @@ def splash(screen):
             int(screen.height / 2 + 3)),
         Stars(screen, 200)
     ]
-    screen.play([Scene(effects, 100)], repeat=False)
+    screen.play([Scene(effects, 85)], repeat=False)
 
 if __name__ == '__main__':
     if os.path.exists(CFG_FILE):
@@ -486,10 +486,8 @@ if __name__ == '__main__':
             if SPLASH is False:
                 pass
             else:
-#                splash()
                 Screen.wrapper(splash)
         else:
-#            splash()
             Screen.wrapper(splash)
         if 'ansible_directory' in config['DEFAULT']:
             os.chdir(config['DEFAULT']['ansible_directory'])
