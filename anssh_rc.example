@@ -1,0 +1,9 @@
+# alias create {alias_name} {command}
+# aliases let you use simple commands for repeatable tasks
+alias create show_log !cat "log file.txt"
+alias create save_results print_results ">" out.txt
+
+# macro create {name} {command} "{1}" "|" {cmd}
+# macros can take complex arguments and do more than aliases
+macro create lc ~cat "{1}" "|" less
+

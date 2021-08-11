@@ -1,0 +1,17 @@
+[DEFAULT]
+    allow_style = {Never | Terminal | Always}
+    editor = {editor {vim, nano, etc}
+    pager = {pager (less, more, etc)
+    foreground_color = {color}
+    timing = True/False
+    ansible_directory = /path/to/ansible/directory
+    ansible_inventory = name_of_inventory
+    ansible_projects = ProjectName1 ProjectName2
+
+[ProjectName1]
+    ansible_directory = /path/to/ansible/directory
+    ansible_inventory = hosts
+
+[ProjectName2]
+    ansible_directory = /path/to/ansible/directory
+    ansible_inventory = inventory
