@@ -514,6 +514,6 @@ if __name__ == '__main__':
             Screen.wrapper(splash)
         if 'ansible_directory' in config['DEFAULT']:
             os.chdir(config['DEFAULT']['ansible_directory'])
-
+    os.system('clear')
     shell = ans_sh(VERSION, BANNER, USERNAME, CFG_FILE)
     sys.exit(shell.cmdloop())
