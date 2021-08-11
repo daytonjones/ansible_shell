@@ -63,22 +63,30 @@ CFG_FILE = os.path.join(os.path.expanduser("~"), '.anssh.cfg')
 VERSION = '0.0.1'
 USERNAME = os.environ.get('USER')
 PY_VERS = platform.python_version()
-try:
-    ans_info = subprocess.run(["ansible", "--version"], capture_output = True, check = True)
-    a = ans_info.stdout.decode().split('\n')
-    A_VER = a[0].split(' (', 1)
-    ap_ver = a[6].split('= ',1)
-    AP_VER = ap_ver[1].split('(',1)
-    J_VER = a[7].split('= ',1)
-except subprocess.CalledProcessError:
-    print("\nCan't find ansible on the system, please install it or ensure it is in the path\n\n\t Try:\t'pip install --user ansible' or have your admin install it\n")
-    sys.exit(1)
 swidth = os.get_terminal_size()
 swidth = re.search("=(.*),", str(swidth))
 swidth = swidth.group(1)
-APROJECTS = []
 B_HEADER = "_" * int(swidth)
-BANNER = "{}\n| Ansible Shell {} | Python {} | {} | Ansible-Python {}| Jinja {} |".format(B_HEADER, VERSION, PY_VERS, A_VER[0], AP_VER[0], J_VER[1])
+try:
+    ans_info = subprocess.run(["ansible", "--version"], capture_output = True, check = True)
+    a = ans_info.stdout.decode().split('\n')
+    if len(a) == 7:
+        A_VER = a[0].split(' (', 1)
+        ap_ver = a[5].split('= ',1)
+        AP_VER = ap_ver[1].split('(',1)
+        BANNER = "{}\n| Ansible Shell {} | Python {} | {} | Ansible-Python {}|".format(B_HEADER, VERSION, PY_VERS, A_VER[0], AP_VER[0])
+    elif len(a) == 10:
+        A_VER = a[0].split(' (', 1)
+        ap_ver = a[6].split('= ',1)
+        AP_VER = ap_ver[1].split('(',1)
+        J_VER = a[7].split('= ',1)
+        BANNER = "{}\n| Ansible Shell {} | Python {} | {} | Ansible-Python {}| Jinja {} |".format(B_HEADER, VERSION, PY_VERS, A_VER[0], AP_VER[0], J_VER[1])
+    else:
+        A_VER = a[0].split(' (', 1)
+        BANNER = "{}\n| Ansible Shell {} | Python {} | {} |".format(B_HEADER, VERSION, PY_VERS, A_VER[0])
+except subprocess.CalledProcessError:
+    print("\nCan't find ansible on the system, please install it or ensure it is in the path\n\n\t Try:\t'pip install --user ansible' or have your admin install it\n")
+    sys.exit(1)
 
 ########################### check for required modules ########################
 os.system('clear')
@@ -200,6 +208,21 @@ class ans_sh(cmd2.Cmd):
         self.add_settable(cmd2.Settable('timing', bool, 'Report run time of commands', self))
         self.add_settable(cmd2.Settable('foreground_color', str, 'Default color for output', self, choices=fg.colors()))
         self.add_settable(cmd2.Settable('pager', str, 'Default pager for output', self))
+
+    def do_quit(self, args):
+        """
+        Exit ansible shell
+        You can also use Ctrl-D
+        """
+        print("Quitting {}".format(ME))
+        raise SystemExit
+
+    def help_quit(self):
+        print("Exit {}".format(ME))
+        print("You can also use Ctrl-D")
+
+    do_exit = do_quit
+    help_exit = help_quit
 
     def do_clear(self,clear=None):
         """clear the screen"""
@@ -347,7 +370,7 @@ Use 'switch <tab key>' to see the configured projects
                 quiet=True,
         )
         self.ppaged(style(i_info,fg=self.foreground_color))
-        self.do_clear()  
+        self.do_clear()
         self.poutput(style(i_info, fg=self.foreground_color))
 
     pb_parser = cmd2.Cmd2ArgumentParser()
